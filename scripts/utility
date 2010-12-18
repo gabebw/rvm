@@ -48,7 +48,7 @@ __rvm_teardown()
 
   fi
 
-  unset rvm_ruby_strings rvm_head_flag rvm_prior_cc next_token rvm_bin_path rvm_error_message rvm_gems_cache_path rvm_gems_path rvm_gemset_name rvm_interactive_flag rvm_man_path rvm_parse_break rvm_rc_files rvm_ruby_binary rvm_ruby_gem_home rvm_ruby_gem_path rvm_ruby_home rvm_ruby_interpreter rvm_ruby_irbrc rvm_ruby_log_path rvm_ruby_major_version rvm_ruby_minor_version rvm_ruby_package_name rvm_ruby_patch_level rvm_ruby_release_version rvm_ruby_repo_url rvm_ruby_repo_branch rvm_ruby_revision rvm_ruby_selected_flag rvm_ruby_tag rvm_ruby_version rvm_selfcontained rvm_token rvm_ruby_load_path rvm_path_flag rvm_ruby_require rvm_action rvm_ruby_package_file rvm_ruby_name
+  unset rvm_ruby_strings rvm_head_flag rvm_prior_cc next_token rvm_bin_path rvm_error_message rvm_gems_cache_path rvm_gems_path rvm_gemset_name rvm_interactive_flag rvm_man_path rvm_parse_break rvm_rc_files rvm_ruby_binary rvm_ruby_gem_home rvm_ruby_gem_path rvm_ruby_home rvm_ruby_interpreter rvm_ruby_irbrc rvm_ruby_log_path rvm_ruby_major_version rvm_ruby_minor_version rvm_ruby_package_name rvm_ruby_patch_level rvm_ruby_release_version rvm_ruby_repo_url rvm_ruby_repo_branch rvm_ruby_revision rvm_ruby_selected_flag rvm_ruby_tag rvm_ruby_version rvm_selfcontained rvm_token rvm_ruby_load_path rvm_path_flag rvm_ruby_require rvm_action rvm_ruby_package_file rvm_ruby_name rvm_static_flag
 
   [[ ${rvm_dump_environment_flag:-0} -eq 1 ]] && __rvm_dump_environment
 
@@ -220,8 +220,9 @@ __rvm_push()
 # Clean all *duplicate* items out of the path. (keep first occurrence of each)
 __rvm_clean_path()
 {
-  PATH="$(printf "$PATH" | \tr -s ':' '\n' | awk '!($0 in a){a[$0];print}' \
-    | \tr -s '\n' ':' | sed 's#:$##')"
+  PATH="$(printf "$PATH" \
+          | awk -v RS=: -v ORS=: '!($0 in a){a[$0];print}')"
+  PATH="${PATH/%:/}" # Strip trailing : if it exists
 
   export PATH
 
@@ -232,8 +233,8 @@ __rvm_clean_path()
 __rvm_remove_rvm_from_path()
 {
   PATH="$(printf "$PATH" \
-    | awk -v RS=: -v ORS=: "/${rvm_path//\//\/}/ {next} {print}" \
-    | sed -e 's#:$##')"
+          | awk -v RS=: -v ORS=: "/${rvm_path//\//\/}/ {next} {print}")"
+  PATH="${PATH/%:/}" # Strip trailing : if it exists
 
   export PATH
 
@@ -271,7 +272,7 @@ __rvm_run()
 
   \touch "$log" # for zsh :(
 
-  printf "[$(date +'%Y-%m-%d %H:%M:%S')] $command\n" > "$log"
+  printf "[$(date +'%Y-%m-%d %H:%M:%S')] $command\n" >> "$log"
 
   if [[ ${rvm_niceness:-0} -gt 0 ]] ; then
     command="nice -n $rvm_niceness $command"
@@ -322,7 +323,7 @@ __rvm_run_with_env()
 
   \touch "$log" # for zsh :(
 
-  printf "[$(date +'%Y-%m-%d %H:%M:%S')] $command # under $environment\n" > "${log}"
+  printf "[$(date +'%Y-%m-%d %H:%M:%S')] $command # under $environment\n" >> "${log}"
 
   if [[ ${rvm_niceness:-0} -gt 0 ]] ; then
     command="nice -n $rvm_niceness $command"
@@ -372,7 +373,7 @@ __rvm_cleanse_variables()
     unset rvm_gemset_name
   fi
 
-  unset rvm_ruby_string rvm_action rvm_irbrc_file rvm_command rvm_error_message rvm_force_flag rvm_all_flag rvm_reconfigure_flag rvm_make_flags rvm_bin_flag rvm_import_flag rvm_export_flag rvm_self_flag rvm_gem_flag rvm_rubygems_flag rvm_debug_flag rvm_delete_flag rvm_summary_flag rvm_test_flag _rvm_spec_flag rvm_json_flag rvm_yaml_flag rvm_shebang_flag rvm_env_flag rvm_tail_flag rvm_use_flag rvm_dir_flag rvm_list_flag rvm_empty_flag rvm_file_name rvm_benchmark_flag rvm_clear_flag rvm_name_flag rvm_verbose_flag rvm_user_flag rvm_system_flag rvm_configure_flags rvm_uninstall_flag rvm_install_flag rvm_llvm_flag rvm_ruby_bits rvm_sticky_flag rvm_rvmrc_flag rvm_gems_flag rvm_only_path_flag rvm_docs_flag rvm_ruby_aliases rvm_patch_names rvm_clang_flag rvm_install_arguments rvm_dump_environment_flag rvm_ruby_alias
+  unset rvm_ruby_string rvm_action rvm_irbrc_file rvm_command rvm_error_message rvm_force_flag rvm_all_flag rvm_reconfigure_flag rvm_make_flags rvm_bin_flag rvm_import_flag rvm_export_flag rvm_self_flag rvm_gem_flag rvm_rubygems_flag rvm_debug_flag rvm_delete_flag rvm_summary_flag rvm_test_flag _rvm_spec_flag rvm_json_flag rvm_yaml_flag rvm_shebang_flag rvm_env_flag rvm_tail_flag rvm_use_flag rvm_dir_flag rvm_list_flag rvm_empty_flag rvm_file_name rvm_benchmark_flag rvm_clear_flag rvm_name_flag rvm_verbose_flag rvm_user_flag rvm_system_flag rvm_configure_flags rvm_uninstall_flag rvm_install_flag rvm_llvm_flag rvm_ruby_bits rvm_sticky_flag rvm_rvmrc_flag rvm_gems_flag rvm_only_path_flag rvm_docs_flag rvm_ruby_aliases rvm_patch_names rvm_clang_flag rvm_install_arguments rvm_dump_environment_flag rvm_ruby_alias rvm_static_flag
 }
 
 # Returns the first 1.8.7-compatible (partly) ruby for use
@@ -672,14 +673,37 @@ __rvm_reset()
   return 0
 }
 
-# Implode removes the entire rvm installation under $rvm_path.
+# Remove binaries.
+
+__rvm_implode_binaries()
+{
+  # Load inside a subshell to avoid polutting the current shells env.
+  (
+    source "$rvm_path/scripts/base"
+
+    "$rvm_path/scripts/log" "info" \
+      "Removing rvm-shipped binaries (rvm-prompt, rvm, rvm-sudom rvm-shell and rvm-auto-ruby)"
+    \rm -rf "$rvm_bin_path/"{rvm-prompt,rvm,rvmsudo,rvm-shell,rvm-auto-ruby}
+
+    "$rvm_path/scripts/log" "info" \
+      "Removing rvm wrappers in $rvm_bin_path"
+    \find "$rvm_bin_path" -type l | while read symlinked_rvm_file; do
+      if [[ "$(readlink "$symlinked_rvm_file")" = "$rvm_path/wrappers/"* ]]; then
+        \rm -rf "$symlinked_rvm_file"
+      fi
+    done
+    unset symlinked_rvm_file
+  )
+}
+
+# Implode removes the entire rvm installation under $rvm_path, including removing wrappers.
 __rvm_implode()
 {
   while : ; do
 
     "$rvm_path/scripts/log" "warn" \
       "Are you SURE you wish for rvm to implode?\
-      \nThis will recursively remove $rvm_path ?\
+      \nThis will recursively remove $rvm_path and other rvm traces?\
       \n(type 'yes' or 'no')> "
 
     read response
@@ -695,12 +719,23 @@ __rvm_implode()
 
         if [[ -d "$rvm_path" ]] ; then
 
+          __rvm_implode_binaries
+
+
           "$rvm_path/scripts/log" "info" \
             "Hai! Removing $rvm_path"
 
           \rm -rf "$rvm_path/"
 
           echo "$rvm_path has been removed."
+
+          if [[ "$rvm_path" = "/usr/local/rvm"* && -f "/usr/local/lib/rvm" ]]; then
+            "$rvm_path/scripts/log" "info" \
+              "Removing the rvm loader at /usr/local/lib/rvm"
+          fi
+
+          "$rvm_path/scripts/log" "info" \
+            "rvm has been fully removed. Note you may need to manually remove /etc/rvmrc and ~/.rvmrc if they exist still."
 
         else
 
